@@ -19,9 +19,23 @@
  */
 import cockpit from 'cockpit';
 import React, { PropTypes } from "react";
-import { shutdownVm, forceVmOff, forceRebootVm, rebootVm, startVm,
-         usageStartPolling, usageStopPolling, sendNMI } from "./actions.es6";
-import { rephraseUI, logDebug, toGigaBytes, toFixedPrecision, vmId } from "./helpers.es6";
+import {
+    shutdownVm,
+    forceVmOff,
+    forceRebootVm,
+    rebootVm,
+    sendNMI,
+    startVm,
+    usageStartPolling,
+    usageStopPolling,
+} from "./actions.es6";
+import {
+    rephraseUI,
+    logDebug,
+    toGigaBytes,
+    toFixedPrecision,
+    vmId,
+} from "./helpers.es6";
 import DonutChart from "./c3charts.jsx";
 import { Listing, ListingRow } from "cockpit-components-listing.jsx";
 import VmDisksTab from './vmdiskstab.jsx';
@@ -30,6 +44,7 @@ import Consoles from './components/consoles.jsx';
 import { deleteDialog } from "./components/deleteDialog.jsx";
 import InfoRecord from './components/infoRecord.jsx';
 import VmLastMessage from './components/vmLastMessage.jsx';
+import createDialog from './components/createDialog.jsx';
 
 const _ = cockpit.gettext;
 
@@ -40,17 +55,6 @@ function mouseClick(fun) {
         event.stopPropagation();
         return fun(event);
     };
-}
-
-const NoVm = () => {
-    return (<div className="cockpit-log-warning">
-        <div className="blank-slate-pf">
-            <div className="blank-slate-pf-icon">
-                <i className="pficon pficon-virtual-machine"></i>
-                <h1>{ _("No VM is running or defined on this host") }</h1>
-            </div>
-        </div>
-    </div>);
 }
 
 const VmActions = ({ vm, config, dispatch, onStart, onReboot, onForceReboot, onShutdown, onForceoff, onSendNMI}) => {
@@ -452,15 +456,16 @@ class HostVmsList extends React.Component {
 
     render() {
         const { vms, config, dispatch, actions } = this.props;
-        if (vms.length === 0) {
-            return (<div className='container-fluid'>
-                <NoVm />
-            </div>);
-        }
 
         const sortFunction = (vmA, vmB) => vmA.name.localeCompare(vmB.name);
 
-        let allActions = []; // like createVmAction
+        const createVmAction = (
+            <a className="card-pf-link-with-icon pull-right" onClick={mouseClick(() => createDialog(dispatch))}>
+                <span className="pficon pficon-add-circle-o"/>{_("Create VM")}
+            </a>
+        );
+
+        let allActions = [createVmAction];
         if (actions) {
             allActions = allActions.concat(actions);
         }
