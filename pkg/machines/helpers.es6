@@ -150,8 +150,20 @@ export function logError(msg, ...params) {
     console.error(msg, ...params);
 }
 
-export function filterNonIntegers(event) {
-    return event.charCode >= 48 && event.charCode <= 57;
+export function digitFilter(event, allowDots = false) {
+    let doNotFilter = (allowDots && event.charCode === 46) || event.charCode >= 48 && event.charCode <= 57;
+
+    if (!doNotFilter) {
+        event.preventDefault();
+    }
+
+    return doNotFilter;
+}
+
+export function getTodayYearShifted(yearDifference) {
+    const result = new Date();
+    result.setFullYear(result.getFullYear() + yearDifference);
+    return result;
 }
 
 const transform = {
@@ -291,4 +303,41 @@ export function mouseClick(fun) {
         event.preventDefault();
         return fun(event);
     };
+}
+
+/**
+ * Let promise resolve itself in specified delay or force resolve it with 0 arguments
+ *
+ * @param promise
+ * @param delay of timeout in ms
+ * @returns new promise
+ */
+export function timeoutedPromise(promise, delay) {
+    const deferred = cockpit.defer();
+    let done = false;
+
+    let timer = window.setTimeout(() => {
+        if (!done) {
+            deferred.resolve();
+            done = true;
+        }
+    }, delay);
+
+    promise.then(function(/* ... */) {
+        if (!done) {
+            deferred.resolve.apply(deferred, arguments);
+            done = true;
+            window.clearTimeout(timer);
+        }
+    });
+
+    promise.catch(function(/* ... */) {
+        if (!done) {
+            deferred.reject.apply(deferred, arguments);
+            done = true;
+            window.clearTimeout(timer);
+        }
+    });
+
+    return deferred.promise;
 }
