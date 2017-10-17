@@ -32,7 +32,9 @@ import {
 import {
     rephraseUI,
     logDebug,
-    toGigaBytes,
+    convertToUnit,
+    toReadableNumber,
+    units,
     toFixedPrecision,
     vmId,
 } from "./helpers.es6";
@@ -320,8 +322,8 @@ class VmUsageTab extends React.Component {
 
         const memChartData = {
             columns: [
-                [_("Used"), toGigaBytes(rssMem, 'KiB')],
-                [_("Available"), toGigaBytes(available, 'KiB')]
+                [_("Used"), toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))],
+                [_("Available"), toReadableNumber(convertToUnit(available, units.KiB, units.GiB))]
             ],
             groups: [
                 ["used", "available"]
@@ -349,7 +351,7 @@ class VmUsageTab extends React.Component {
                 <tr>
                     <td>
                         <DonutChart data={memChartData} size={chartSize} width='8' tooltipText=' '
-                                    primaryTitle={toGigaBytes(rssMem, 'KiB')} secondaryTitle='GB'
+                                    primaryTitle={toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))} secondaryTitle='GiB'
                                     caption={`used from ${cockpit.format_bytes(memTotal * 1024)} memory`}/>
                     </td>
 

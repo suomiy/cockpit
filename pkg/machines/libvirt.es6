@@ -38,7 +38,8 @@ import { updateOrAddVm,
 import { usagePollingEnabled } from './selectors.es6';
 import { spawnScript, spawnProcess } from './services.es6';
 import {
-    toKiloBytes,
+    convertToUnit,
+    units,
     isEmpty,
     logDebug,
     rephraseUI,
@@ -380,7 +381,7 @@ function parseDumpxml(dispatch, connectionName, domXml) {
     const emulatedMachine = osTypeElem.getAttribute("machine");
 
     const currentMemoryUnit = currentMemoryElem.getAttribute("unit");
-    const currentMemory = toKiloBytes(currentMemoryElem.childNodes[0].nodeValue, currentMemoryUnit);
+    const currentMemory = convertToUnit(currentMemoryElem.childNodes[0].nodeValue, currentMemoryUnit, units.KiB);
 
     const vcpus = (vcpuCurrentAttr && vcpuCurrentAttr.value) ? vcpuCurrentAttr.value : vcpuElem.childNodes[0].nodeValue;
 
