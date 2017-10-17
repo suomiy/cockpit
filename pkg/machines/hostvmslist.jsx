@@ -26,6 +26,7 @@ import {
     rebootVm,
     sendNMI,
     startVm,
+    installVm,
     usageStartPolling,
     usageStopPolling,
 } from "./actions.es6";
@@ -46,12 +47,12 @@ import Consoles from './components/consoles.jsx';
 import { deleteDialog } from "./components/deleteDialog.jsx";
 import InfoRecord from './components/infoRecord.jsx';
 import VmLastMessage from './components/vmLastMessage.jsx';
-import createDialog from './components/createDialog.jsx';
+import { createVmDialog } from './components/createVmDialog.jsx';
 
 const _ = cockpit.gettext;
 
 function mouseClick(fun) {
-    return function (event) {
+    return function(event) {
         if (!event || event.button !== 0)
             return;
         event.stopPropagation();
@@ -59,9 +60,10 @@ function mouseClick(fun) {
     };
 }
 
-const VmActions = ({ vm, config, dispatch, onStart, onReboot, onForceReboot, onShutdown, onForceoff, onSendNMI}) => {
+const VmActions = ({ vm, config, dispatch, onStart, onInstall, onReboot, onForceReboot, onShutdown, onForceoff, onSendNMI, installInProgress }) => {
     const id = vmId(vm.name);
     const state = vm.state;
+    const hasInstallPhase = vm.metadata.hasInstallPhase;
 
     let reset = null;
     if (config.provider.canReset(state)) {
@@ -69,54 +71,61 @@ const VmActions = ({ vm, config, dispatch, onStart, onReboot, onForceReboot, onS
             buttons: [{
                 title: _("Restart"),
                 action: onReboot,
-                id: `${id}-reboot`
+                id: `${id}-reboot`,
             }, {
                 title: _("Force Restart"),
                 action: onForceReboot,
-                id: `${id}-forceReboot`
-            }]
+                id: `${id}-forceReboot`,
+            }],
         });
     }
 
     let shutdown = null;
     if (config.provider.canShutdown(state)) {
-	let buttons = [{
+        let buttons = [{
             title: _("Shut Down"),
             action: onShutdown,
-            id: `${id}-off`
+            id: `${id}-off`,
         }, {
             title: _("Force Shut Down"),
             action: onForceoff,
-            id: `${id}-forceOff`
+            id: `${id}-forceOff`,
         }];
         if (config.provider.canSendNMI && config.provider.canSendNMI(state)) {
             buttons.push({
                 title: _("Send Non-Maskable Interrupt"),
                 action: onSendNMI,
-                id: `${id}-sendNMI`
-            })
+                id: `${id}-sendNMI`,
+            });
         }
         shutdown = DropdownButtons({ buttons: buttons });
     }
 
     let run = null;
-    if (config.provider.canRun(state)) {
+    if (config.provider.canRun(state, hasInstallPhase)) {
         run = (<button className="btn btn-default btn-danger" onClick={mouseClick(onStart)} id={`${id}-run`}>
             {_("Run")}
+        </button>);
+    }
+
+    let install = null;
+    if (config.provider.canInstall(state, hasInstallPhase, installInProgress)) {
+        install = (<button className="btn btn-default btn-danger" onClick={mouseClick(onInstall)} id={`${id}-install`}>
+            {_("Install")}
         </button>);
     }
 
     let providerActions = null;
     if (config.provider.VmActions) {
         const ProviderActions = config.provider.VmActions;
-        providerActions = <ProviderActions vm={vm} providerState={config.providerState} dispatch={dispatch} />;
+        providerActions = <ProviderActions vm={vm} providerState={config.providerState} dispatch={dispatch}/>;
     }
 
     let deleteAction = null;
     if (state !== undefined && config.provider.canDelete && config.provider.canDelete(state, vm.id, config.providerState)) {
         deleteAction = (
             <button className="btn btn-danger" id={`${id}-delete`}
-                    onClick={ mouseClick(() => deleteDialog(vm, dispatch)) }>
+                    onClick={mouseClick(() => deleteDialog(vm, dispatch))}>
                 {_("Delete")}
             </button>
         );
@@ -126,10 +135,11 @@ const VmActions = ({ vm, config, dispatch, onStart, onReboot, onForceReboot, onS
         {reset}
         {shutdown}
         {run}
+        {install}
         {providerActions}
         {deleteAction}
     </div>);
-}
+};
 VmActions.propTypes = {
     vm: PropTypes.object.isRequired,
     config: PropTypes.string.isRequired,
@@ -140,19 +150,19 @@ VmActions.propTypes = {
     onShutdown: PropTypes.func.isRequired,
     onForceoff: PropTypes.func.isRequired,
     onSendNMI: PropTypes.func.isRequired,
-}
+};
 
 const IconElement = ({ onClick, className, title, state }) => {
     return (<span title={title} data-toggle='tooltip' data-placement='left'>
         {state}&nbsp;<i onClick={mouseClick(onClick)} className={className}/>
     </span>);
-}
+};
 IconElement.propTypes = {
     onClick: PropTypes.func,
     className: PropTypes.string.isRequired,
     title: PropTypes.string.isRequired,
     state: PropTypes.string.isRequired,
-}
+};
 
 export const StateIcon = ({ state, config, valueId, extra }) => {
     if (state === undefined) {
@@ -160,15 +170,20 @@ export const StateIcon = ({ state, config, valueId, extra }) => {
     }
 
     let stateMap = {
-        running: {className: 'pficon pficon-ok icon-1x-vms', title: _("The VM is running.")}, // TODO: display VM screenshot if available or the ok-icon otherwise
-        idle: {className: 'pficon pficon-running icon-1x-vms', title: _("The VM is idle.")},
-        paused: {className: 'pficon pficon-pause icon-1x-vms', title: _("The VM is paused.")},
-        shutdown: {className: 'glyphicon glyphicon-wrench icon-1x-vms', title: _("The VM is going down.")},
-        'shut off': {className: 'fa fa-arrow-circle-o-down icon-1x-vms', title: _("The VM is down.")},
-        crashed: {className: 'pficon pficon-error-circle-o icon-1x-vms', title: _("The VM crashed.")},
-        dying: {className: 'pficon pficon-warning-triangle-o icon-1x-vms',
-            title: _("The VM is in process of dying (shut down or crash is not completed).")},
-        pmsuspended: {className: 'pficon pficon-ok icon-1x-vms', title: _("The VM is suspended by guest power management.")},
+        running: { className: 'pficon pficon-ok icon-1x-vms', title: _("The VM is running.") }, // TODO: display VM screenshot if available or the ok-icon otherwise
+        idle: { className: 'pficon pficon-running icon-1x-vms', title: _("The VM is idle.") },
+        paused: { className: 'pficon pficon-pause icon-1x-vms', title: _("The VM is paused.") },
+        shutdown: { className: 'glyphicon glyphicon-wrench icon-1x-vms', title: _("The VM is going down.") },
+        'shut off': { className: 'fa fa-arrow-circle-o-down icon-1x-vms', title: _("The VM is down.") },
+        crashed: { className: 'pficon pficon-error-circle-o icon-1x-vms', title: _("The VM crashed.") },
+        dying: {
+            className: 'pficon pficon-warning-triangle-o icon-1x-vms',
+            title: _("The VM is in process of dying (shut down or crash is not completed)."),
+        },
+        pmsuspended: {
+            className: 'pficon pficon-ok icon-1x-vms',
+            title: _("The VM is suspended by guest power management."),
+        },
     };
     if (config.provider.vmStateMap) { // merge default and provider's stateMap to allow both reuse and extension
         stateMap = Object.assign(stateMap, config.provider.vmStateMap);
@@ -207,7 +222,7 @@ export const DropdownButtons = ({ buttons }) => {
                     <a role='menuitem' onClick={mouseClick(button.action)} id={button.id}>
                         {button.title}
                     </a>
-                </li>)
+                </li>);
             });
 
         const caretId = buttons[0]['id'] ? `${buttons[0]['id']}-caret` : undefined;
@@ -229,10 +244,28 @@ export const DropdownButtons = ({ buttons }) => {
             {buttons[0].title}
         </button>
     </div>);
-}
+};
 DropdownButtons.propTypes = {
-    buttons: PropTypes.array.isRequired
-}
+    buttons: PropTypes.array.isRequired,
+};
+
+export const VmOverviewTabRecord = ({ id, descr, value }) => {
+    return (<tr>
+        <td className='top'>
+            <label className='control-label'>
+                {descr}
+            </label>
+        </td>
+        <td id={id}>
+            {value}
+        </td>
+    </tr>);
+};
+VmOverviewTabRecord.propTypes = {
+    id: PropTypes.string,
+    descr: PropTypes.string.isRequired,
+    value: PropTypes.string.isRequired,
+};
 
 const VmBootOrder = ({ vm }) => {
     let bootOrder = _("No boot device found");
@@ -244,7 +277,7 @@ const VmBootOrder = ({ vm }) => {
     return (<InfoRecord id={`${vmId(vm.name)}-bootorder`} descr={_("Boot Order:")} value={bootOrder}/>);
 };
 VmBootOrder.propTypes = {
-    vm: PropTypes.object.isRequired
+    vm: PropTypes.object.isRequired,
 };
 
 const VmOverviewTab = ({ vm, config, dispatch }) => {
@@ -277,8 +310,8 @@ const VmOverviewTab = ({ vm, config, dispatch }) => {
 
                 <td className='machines-listing-detail-top-column'>
                     <table className='form-table-ct'>
-                        <VmBootOrder vm={vm} />
-                        <InfoRecord id={`${vmId(vm.name)}-autostart`}
+                        <VmBootOrder vm={vm}/>
+                        <VmOverviewTabRecord id={`${vmId(vm.name)}-autostart`}
                                              descr={_("Autostart:")} value={rephraseUI('autostart', vm.autostart)}/>
                     </table>
                 </td>
@@ -291,7 +324,7 @@ const VmOverviewTab = ({ vm, config, dispatch }) => {
 VmOverviewTab.propTypes = {
     vm: PropTypes.object.isRequired,
     config: PropTypes.object.isRequired,
-}
+};
 
 class VmUsageTab extends React.Component {
     componentDidMount() {
@@ -323,35 +356,36 @@ class VmUsageTab extends React.Component {
         const memChartData = {
             columns: [
                 [_("Used"), toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))],
-                [_("Available"), toReadableNumber(convertToUnit(available, units.KiB, units.GiB))]
+                [_("Available"), toReadableNumber(convertToUnit(available, units.KiB, units.GiB))],
             ],
             groups: [
-                ["used", "available"]
+                ["used", "available"],
             ],
-            order: null
+            order: null,
         };
 
         const cpuChartData = {
             columns: [
                 [_("Used"), cpuUsage],
-                [_("Available"), 100.0 - cpuUsage]
+                [_("Available"), 100.0 - cpuUsage],
             ],
             groups: [
-                ["used", "available"]
+                ["used", "available"],
             ],
-            order: null
+            order: null,
         };
 
         const chartSize = {
             width, // keep the .usage-donut-caption CSS in sync
-            height
+            height,
         };
 
         return (<table>
                 <tr>
                     <td>
                         <DonutChart data={memChartData} size={chartSize} width='8' tooltipText=' '
-                                    primaryTitle={toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))} secondaryTitle='GiB'
+                                    primaryTitle={toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))}
+                                    secondaryTitle='GiB'
                                     caption={`used from ${cockpit.format_bytes(memTotal * 1024)} memory`}/>
                     </td>
 
@@ -366,6 +400,7 @@ class VmUsageTab extends React.Component {
         );
     }
 }
+
 VmUsageTab.propTypes = {
     vm: React.PropTypes.object.isRequired,
     onUsageStartPolling: PropTypes.func.isRequired,
@@ -374,8 +409,8 @@ VmUsageTab.propTypes = {
 
 /** One VM in the list (a row)
  */
-const Vm = ({ vm, config, hostDevices, onStart, onShutdown, onForceoff, onReboot, onForceReboot,
-              onUsageStartPolling, onUsageStopPolling, onSendNMI, dispatch }) => {
+const Vm = ({ vm, config, hostDevices, onStart, onInstall, onShutdown, onForceoff, onReboot, onForceReboot,
+              onUsageStartPolling, onUsageStopPolling, onSendNMI, uiState, dispatch }) => {
     const stateAlert = vm.lastMessage && (<span className='pficon-warning-triangle-o machines-status-alert' />);
     const stateIcon = (<StateIcon state={vm.state} config={config} valueId={`${vmId(vm.name)}-state`} extra={stateAlert} />);
 
@@ -397,14 +432,21 @@ const Vm = ({ vm, config, hostDevices, onStart, onShutdown, onForceoff, onReboot
             tabRender => {
                 let tabName = tabRender.name;
                 if (tabRender.idPostfix) {
-                    tabName = (<div id={`${vmId(vm.name)}-${tabRender.idPostfix}`}>{tabRender.name}</div>)
+                    tabName = (<div id={`${vmId(vm.name)}-${tabRender.idPostfix}`}>{tabRender.name}</div>);
                 }
                 return {
                     name: tabName,
                     renderer: tabRender.component,
-                    data: { vm, providerState: config.providerState, dispatch } };
+                    data: { vm, providerState: config.providerState, dispatch },
+                };
             }
         ));
+    }
+
+    const initiallyExpanded = uiState && uiState.createInProgress;
+    let initiallyActiveTab = null;
+    if (uiState && uiState.createInProgress && uiState.createInProgress.openConsoleTab) {
+        initiallyActiveTab = tabRenderers.map((o) =>  o.name).indexOf(consolesTabName);
     }
 
     const name = (<span id={`${vmId(vm.name)}-row`}>{vm.name}</span>);
@@ -414,11 +456,16 @@ const Vm = ({ vm, config, hostDevices, onStart, onShutdown, onForceoff, onReboot
         columns={[
             {name, 'header': true},
             rephraseUI('connections', vm.connectionName),
-            stateIcon
-            ]}
+            stateIcon,
+        ]}
+        initiallyExpanded={initiallyExpanded}
+        initiallyActiveTab={initiallyActiveTab}
         tabRenderers={tabRenderers}
-        listingActions={VmActions({vm, config, dispatch,
-            onStart, onReboot, onForceReboot, onShutdown, onForceoff, onSendNMI})}/>);
+        listingActions={VmActions({
+            vm, config, dispatch,
+            onStart, onInstall, onReboot, onForceReboot, onShutdown, onForceoff, onSendNMI,
+            installInProgress: !!uiState.installInProgress,
+        })}/>);
 };
 Vm.propTypes = {
     vm: PropTypes.object.isRequired,
@@ -433,6 +480,7 @@ Vm.propTypes = {
     onUsageStopPolling: PropTypes.func.isRequired,
     onSendNMI: React.PropTypes.func.isRequired,
     dispatch: PropTypes.func.isRequired,
+    initallyExpanded: PropTypes.bool,
 };
 
 /**
@@ -457,23 +505,29 @@ class HostVmsList extends React.Component {
     }
 
     render() {
-        const { vms, config, dispatch, actions } = this.props;
+        const { vms, config, osInfoList, ui, dispatch, actions } = this.props;
 
         const sortFunction = (vmA, vmB) => vmA.name.localeCompare(vmB.name);
 
-        const createVmAction = (
-            <a className="card-pf-link-with-icon pull-right" onClick={mouseClick(() => createDialog(dispatch))}>
-                <span className="pficon pficon-add-circle-o"/>{_("Create VM")}
-            </a>
-        );
+        let allActions = [];
 
-        let allActions = [createVmAction];
+        if (osInfoList.length > 1) {
+            allActions.push((
+                <a className="card-pf-link-with-icon pull-right" id="create-new-vm"
+                   onClick={mouseClick(() => createVmDialog(dispatch, osInfoList))}>
+                    <span className="pficon pficon-add-circle-o"/>{_("Create New VM")}
+                </a>
+            ));
+        }
         if (actions) {
             allActions = allActions.concat(actions);
         }
 
         return (<div className='container-fluid'>
-            <Listing title={_("Virtual Machines")} columnTitles={[_("Name"), _("Connection"), _("State")]} actions={allActions}>
+            <Listing title={_("Virtual Machines")}
+                     columnTitles={[_("Name"), _("Connection"), _("State")]}
+                     actions={allActions}
+                     emptyCaption={_("No VMs is running or defined on this host")}>
                 {vms
                     .sort(sortFunction)
                     .map(vm => {
@@ -481,6 +535,7 @@ class HostVmsList extends React.Component {
                         <Vm vm={vm} config={config}
                             hostDevices={this.deviceProxies}
                             onStart={() => dispatch(startVm(vm))}
+                            onInstall={() => dispatch(installVm(vm))}
                             onReboot={() => dispatch(rebootVm(vm))}
                             onForceReboot={() => dispatch(forceRebootVm(vm))}
                             onShutdown={() => dispatch(shutdownVm(vm))}
@@ -489,6 +544,11 @@ class HostVmsList extends React.Component {
                             onUsageStopPolling={() => dispatch(usageStopPolling(vm))}
                             onSendNMI={() => dispatch(sendNMI(vm))}
                             dispatch={dispatch}
+                            uiState={{
+                                createInProgress: ui.vmsCreated[vm.name],
+                                installInProgress: ui.vmsInstallInitiated[vm.name],
+                            }}
+                            key={`${vmId(vm.name)}`}
                         />);
                 })}
             </Listing>
@@ -497,9 +557,11 @@ class HostVmsList extends React.Component {
 }
 
 HostVmsList.propTypes = {
-    vms: PropTypes.object.isRequired,
+    vms: PropTypes.array.isRequired,
     config: PropTypes.object.isRequired,
-    dispatch: PropTypes.func.isRequired
+    osInfoList: PropTypes.array.isRequired,
+    ui: PropTypes.object.isRequired,
+    dispatch: PropTypes.func.isRequired,
 };
 
 export default HostVmsList;
