@@ -207,6 +207,7 @@ class TestMachines(MachineCase):
 
         self.allow_journal_messages('.*denied.*search.*"qemu-system-x86".*dev="proc".*')
         self.allow_journal_messages('.*denied.*comm="pmsignal".*')
+        self.allow_journal_messages('.*type=1400.*')
 
         return args
 
@@ -218,6 +219,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -237,6 +239,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -308,9 +311,8 @@ class TestMachines(MachineCase):
 
         # restart libvirtd
         m.execute("systemctl stop libvirtd")
-        b.wait_present("#app .blank-slate-pf")
-        b.wait_visible("#app .blank-slate-pf")
-        b.wait_in_text("#app .blank-slate-pf", "No VM is running")
+        b.wait_present("thead tr td")
+        b.wait_in_text("thead tr td", "No VMs is running")
         m.execute("systemctl start libvirtd")
         b.wait_present("#app .listing-ct tbody:nth-of-type(1) th")
         b.wait_in_text("#app .listing-ct tbody:nth-of-type(1) th", "subVmTest1")
@@ -372,6 +374,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -445,6 +448,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -480,6 +484,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -506,6 +511,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", "subVmTest1")
 
         b.click("tbody tr th") # click on the row header
@@ -534,6 +540,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", name)
 
         m.execute("test -f {0}".format(img2))
@@ -562,6 +569,7 @@ class TestMachines(MachineCase):
 
         self.login_and_go("/machines")
         b.wait_in_text("body", "Virtual Machines")
+        b.wait_present("tbody tr th")
         b.wait_in_text("tbody tr th", name)
 
         b.click("tbody tr th") # click on the row header
