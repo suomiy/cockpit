@@ -659,6 +659,18 @@ class TestMachines(MachineCase):
                 .deleteVm(dialog) \
                 .checkEnvIsEmpty()
 
+        def createInstallTest(dialog):
+            runner.tryCreateInstall(dialog) \
+                .assertScriptFinished() \
+                .deleteVm(dialog) \
+                .checkEnvIsEmpty()
+
+        def installTest(dialog):
+            runner.tryInstall(dialog) \
+                .assertScriptFinished() \
+                .deleteVm(dialog) \
+                .checkEnvIsEmpty()
+
         runner.checkEnvIsEmpty()
 
         # test just the DIALOG CREATION and cancel
@@ -750,17 +762,42 @@ class TestMachines(MachineCase):
                                          os_vendor=config.REDHAT_VENDOR,
                                          os_name=config.REDHAT_RHEL_7_3,
                                          start_vm=False))
+
+        # FIXME: see https://github.com/cockpit-project/cockpit/issues/8385
+
+        # try to INSTALL when creating
+        createInstallTest(TestMachines.VmDialog(self, "subVmTestCreate15", is_filesystem_location=True,
+                                                location=config.CENTOS_MOCKUP_ISO_PATH,
+                                                memory_size=4, memory_size_unit='MiB',
+                                                storage_size=10, storage_size_unit='MiB',
+                                                os_vendor=config.CENTOS_VENDOR,
+                                                os_name=config.CENTOS_6_5_OS,
+                                                start_vm=True))
+
+        # try to CREATE and then INSTALL
+        installTest(TestMachines.VmDialog(self, "subVmTestCreate16", is_filesystem_location=True,
+                                          location=config.CENTOS_MOCKUP_ISO_PATH,
+                                          memory_size=4, memory_size_unit='MiB',
+                                          storage_size=10, storage_size_unit='MiB',
+                                          os_vendor=config.CENTOS_VENDOR,
+                                          os_name=config.CENTOS_6_5_OS,
+                                          start_vm=False))
+
+        installTest(TestMachines.VmDialog(self, "subVmTestCreate17", is_filesystem_location=True,
+                                          location=config.CENTOS_MOCKUP_ISO_PATH,
+                                          memory_size=4, memory_size_unit='MiB',
+                                          storage_size=0, storage_size_unit='GiB',
+                                          os_vendor=config.MICROSOFT_VENDOR,
+                                          os_name=config.MICROSOFT_10_OS,
+                                          start_vm=False))
         # try to INSTALL WITH ERROR
-        installWithErrorTest(TestMachines.VmDialog(self, "subVmTestCreate15",
+        installWithErrorTest(TestMachines.VmDialog(self, "subVmTestCreate18",
                                                    memory_size=4, memory_size_unit='MiB',
                                                    storage_size=10, storage_size_unit='MiB',
                                                    os_vendor=config.REDHAT_VENDOR,
                                                    os_name=config.REDHAT_RHEL_7_2))
 
-        # TODO: add use cases with start_vm=True and check that vm started
-        # - for install when creating vm
-        # - for create vm and then install
-        # see https://github.com/cockpit-project/cockpit/issues/8385
+        # TODO: see https://github.com/cockpit-project/cockpit/issues/8385
 
         # console for try INSTALL
         self.allow_journal_messages('.*connection.*')
@@ -1082,6 +1119,63 @@ class TestMachines(MachineCase):
             b.click("#app .listing-ct tbody:nth-of-type(1) a:contains(show more)")
 
             return self
+
+        def tryCreateInstall(self, dialog):
+            dialog.open().fill().create()
+            self._checkInstallPhase(dialog)
+
+            return self
+
+        def tryInstall(self, dialog):
+            b = self.browser
+            dialog.start_vm = False
+            name = dialog.name
+
+            dialog.open().fill().create()
+
+            b.wait_present("#vm-{0}-install".format(name))
+            b.click("#vm-{0}-install".format(name))
+            # install script tries to redefine and install
+            b.wait_not_present("#app .listing-ct tbody:nth-of-type(1) th")
+            # shows vm again in install phase
+            self._checkInstallPhase(dialog)
+
+            return self
+
+        def _checkInstallPhase(self, dialog):
+            b = self.browser
+            name = dialog.name
+
+            b.wait_present("#app .listing-ct tbody:nth-of-type(1) th")
+            b.wait_in_text("#app .listing-ct tbody:nth-of-type(1) th", name)
+            # automatic opening of vm depends on timeout
+            if not b.is_present(".listing-ct-panel .listing-ct-head"):
+                # automatic selection of console timed out and listing is closed
+                b.click("#app .listing-ct tbody:nth-of-type(1) th")
+            # click on console either way
+            b.click("#app .listing-ct tbody:nth-of-type(1) .listing-ct-panel .listing-ct-head a:contains(Console)")
+
+            b.wait_present("#vm-{0}-state".format(name))
+            b.wait_in_text("#vm-{0}-state".format(name), "running")
+
+            # wait for console
+            console_frame = "#vm-{0}-novnc-frame-container".format(name)
+            b.wait_present(console_frame)
+
+            # to turn off the console so we do not get an error
+            b.wait_visible("#console-type-select")
+            b.click("#console-type-select")
+            b.click("#console-type-select ul li a:contains(Graphics Console in Desktop Viewer)")
+            b.wait_not_present(console_frame)
+
+            # shut off
+            b.wait_visible("#vm-{0}-off-caret".format(name))
+            b.click("#vm-{0}-off-caret".format(name))
+            b.wait_visible("#vm-{0}-forceOff".format(name))
+            b.click("#vm-{0}-forceOff".format(name))
+            self.assertScriptFinished()
+            b.wait_present("#vm-{0}-state".format(name))
+            b.wait_in_text("#vm-{0}-state".format(name), "shut off")
 
         def deleteVm(self, dialog):
             b = self.browser
