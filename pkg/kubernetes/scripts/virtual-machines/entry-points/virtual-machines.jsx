@@ -21,10 +21,11 @@ import 'regenerator-runtime/runtime'; // required for library initialization
 import React from 'react';
 import { Provider } from 'react-redux';
 
-import VmsListing from '../components/VmsListing.jsx';
+import VmsListing from '../components/vm/VmsListing.jsx';
 import { initStore, getStore } from '../store.es6';
 import initialize from './util/initialize.es6';
-import { setVms } from '../action-creators.jsx';
+import { setVmis, setVms } from '../action-creators.jsx';
+import { VM_KIND, VMI_KIND } from '../constants.es6';
 
 import '../../../../machines/machines.less'; // once per component hierarchy
 
@@ -36,10 +37,13 @@ const VmsPage = () => (
 
 function addVmsListener (store, $scope, kubeLoader, kubeSelect) {
     kubeLoader.listen(() => {
-        const vms = kubeSelect().kind('VirtualMachineInstance');
+        const vms = kubeSelect().kind(VM_KIND);
+        const vmis = kubeSelect().kind(VMI_KIND);
         store.dispatch(setVms(Object.values(vms)));
+        store.dispatch(setVmis(Object.values(vmis)));
     }, $scope);
-    kubeLoader.watch('VirtualMachineInstance', $scope);
+    kubeLoader.watch(VM_KIND, $scope);
+    kubeLoader.watch(VMI_KIND, $scope);
 }
 
 /**

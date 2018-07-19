@@ -54,11 +54,11 @@ export function watchMetrics(store) {
         const nodes = {};
         let refresh = false;
 
-        Object.keys(state.ui).forEach(metadata_uid => {
-            const vmUiState = state.ui[metadata_uid];
-            if (vmUiState.isExpanded) {
-                const vm = state.vms.find(vm => vm.metadata.uid === metadata_uid);
-                const node = getNodeName(vm);
+        Object.keys(state.vmsUi).forEach(metadata_uid => {
+            const vmiUiState = state.vmsUi[metadata_uid];
+            if (vmiUiState.isExpanded) {
+                const vmi = state.vms.find(vmi => vmi.metadata.uid === metadata_uid);
+                const node = getNodeName(vmi);
                 if (node) {
                     if (!metrics.watchedNodes[node] && !nodes[node]) {
                         refresh = true;
