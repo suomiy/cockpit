@@ -17,9 +17,9 @@
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getNodeName } from './selectors.jsx';
-import { fetchStatSummary } from './kube-middleware.jsx';
-import { setNodeMetrics } from "./action-creators.jsx";
+import { getNodeName } from './selectors.es6';
+import { fetchStatSummary } from './kube-middleware.es6';
+import { setNodeMetrics } from "./action-creators.es6";
 
 import CONFIG from './config.es6';
 
