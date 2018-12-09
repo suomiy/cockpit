@@ -43,6 +43,7 @@ import {
     getOSStringRepresentation,
 } from "./createVmDialogUtils.es6";
 import MemorySelectRow from '../memorySelectRow.jsx';
+import OptimizationRow, {DEFAULT_PROFILE} from './optimizationRow.jsx';
 
 import './createVmDialog.less';
 import VMS_CONFIG from '../../config.es6';
@@ -71,6 +72,8 @@ class CreateVM extends React.Component {
             sourceType: props.vmParams.sourceType,
             startVm: props.vmParams.startVm,
             connectionName: props.vmParams.connectionName,
+            optimize: props.vmParams.optimize,
+            optimizationProfile: props.vmParams.optimizationProfile,
         };
 
         this.onChangedValue = this.onChangedValue.bind(this);
@@ -143,6 +146,14 @@ class CreateVM extends React.Component {
             key = 'storageSize';
             break;
         case 'startVm': {
+            this.setState({ [key]: value });
+            break;
+        }
+        case 'optimize': {
+            this.setState({ [key]: value });
+            break;
+        }
+        case 'optimizationProfile': {
             this.setState({ [key]: value });
             break;
         }
@@ -306,6 +317,11 @@ class CreateVM extends React.Component {
                                          initialUnit={this.state.storageSizeUnit}
                                          onValueChange={this.onChangedEventValue.bind(this, 'storageSize')}
                                          onUnitChange={this.onChangedValue.bind(this, 'storageSizeUnit')} />
+                        <OptimizationRow id={"optimization"}
+                                         checked={this.state.optimize}
+                                         profile={this.state.optimizationProfile}
+                                         onCheckedChange={this.onChangedEventChecked.bind(this, 'optimize')}
+                                         onProfileChange={this.onChangedValue.bind(this, 'optimizationProfile')} />
                         <tr>
                             <td className="top">
                                 <label className="control-label" htmlFor="start-vm">
@@ -398,6 +414,8 @@ class CreateVmModal extends React.Component {
             'storageSize': 10, // GiB
             'startVm': false,
             'error': null,
+            'optimize': false,
+            'optimizationProfile': DEFAULT_PROFILE,
         };
         this.onValueChanged = this.onValueChanged.bind(this);
         this.onCreateClicked = this.onCreateClicked.bind(this);

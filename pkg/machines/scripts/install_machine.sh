@@ -10,6 +10,8 @@ MEMORY_SIZE="$5" # in Mib
 VCPUS="$6"
 DISKS="$7"
 DISPLAYS="$8"
+OPTIMIZE="$9"
+OPTIMIZATION_PROFILE="${10}"
 
 # prepare virt-install parameters
 
@@ -83,6 +85,8 @@ if [ "$EXIT_STATUS" -eq 0 ] && vmExists "$VM_NAME"; then
       <cockpit_machines:has_install_phase>false</cockpit_machines:has_install_phase> \
       <cockpit_machines:install_source>'"$SOURCE"'</cockpit_machines:install_source> \
       <cockpit_machines:os_variant>'"$OS"'</cockpit_machines:os_variant> \
+      <cockpit_machines:optimize>'"$OPTIMIZE"'</cockpit_machines:optimize> \
+      <cockpit_machines:optimization_profile>'"$OPTIMIZATION_PROFILE"'</cockpit_machines:optimization_profile> \
     </cockpit_machines:data>'
 
     if [ -z "$METADATA_LINE"  ]; then
@@ -90,6 +94,10 @@ if [ "$EXIT_STATUS" -eq 0 ] && vmExists "$VM_NAME"; then
         METADATA='\ \ <metadata> \
 '"$METADATA"' \
   </metadata>'
+    fi
+
+    if [ "$OPTIMIZE" = "true" ] && type libvirt-vm-optimizer &> /dev/null; then
+        libvirt-vm-optimizer --in-place --profile "$OPTIMIZATION_PROFILE" -c "$CONNECTION_URI" "$DOMAIN_FILE"
     fi
 
     #inject metadata, and define

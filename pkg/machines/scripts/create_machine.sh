@@ -8,6 +8,8 @@ OS="$4"
 MEMORY_SIZE="$5" # in MiB
 STORAGE_SIZE="$6" # in GiB
 START_VM="$7"
+OPTIMIZE="$8"
+OPTIMIZATION_PROFILE="$9"
 
 vmExists(){
    virsh -c "$CONNECTION_URI" list --all | awk  '{print $2}' | grep -q --line-regexp --fixed-strings "$1"
@@ -104,6 +106,8 @@ echo "$DOMAIN_MATCHES"  |  sed 's/[^0-9]//g' | while read -r FINISH_LINE ; do
       <cockpit_machines:has_install_phase>'"$HAS_INSTALL_PHASE"'</cockpit_machines:has_install_phase> \
       <cockpit_machines:install_source>'"$SOURCE"'</cockpit_machines:install_source> \
       <cockpit_machines:os_variant>'"$OS"'</cockpit_machines:os_variant> \
+      <cockpit_machines:optimize>'"$OPTIMIZE"'</cockpit_machines:optimize> \
+      <cockpit_machines:optimization_profile>'"$OPTIMIZATION_PROFILE"'</cockpit_machines:optimization_profile> \
     </cockpit_machines:data>'
 
             if [ -z "$METADATA_LINE"  ]; then
@@ -111,6 +115,10 @@ echo "$DOMAIN_MATCHES"  |  sed 's/[^0-9]//g' | while read -r FINISH_LINE ; do
                 METADATA='\ \ <metadata> \
 '"$METADATA"' \
   </metadata>'
+            fi
+
+            if [ "$START_VM" = "true" ] && [ "$OPTIMIZE" = "true" ] && type libvirt-vm-optimizer &> /dev/null; then # do not optimize if not started (vcpus, etc. can change)
+                libvirt-vm-optimizer --in-place --profile "$OPTIMIZATION_PROFILE" -c "$CONNECTION_URI" "$XMLS_FILE"
             fi
 
             #inject metadata, and define

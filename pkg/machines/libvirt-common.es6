@@ -220,11 +220,17 @@ export function parseDumpxml(dispatch, connectionName, domXml, id_overwrite) {
     const hasInstallPhase = parseDumpxmlMachinesMetadataElement(metadataElem, 'has_install_phase') === 'true';
     const installSource = parseDumpxmlMachinesMetadataElement(metadataElem, 'install_source');
     const osVariant = parseDumpxmlMachinesMetadataElement(metadataElem, 'os_variant');
+    const optimize = parseDumpxmlMachinesMetadataElement(metadataElem, 'optimize') === 'true';
+    const optimization_profile = parseDumpxmlMachinesMetadataElement(metadataElem, 'optimization_profile');
+    const prefer_hyperthreading = parseDumpxmlMachinesMetadataElement(metadataElem, 'prefer_hyperthreading') === 'true';
 
     const metadata = {
         hasInstallPhase,
         installSource,
         osVariant,
+        optimize,
+        optimization_profile,
+        prefer_hyperthreading,
     };
 
     return {
@@ -698,7 +704,7 @@ export function CONSOLE_VM({
     };
 }
 
-export function CREATE_VM({ connectionName, vmName, source, os, memorySize, storageSize, startVm }) {
+export function CREATE_VM({ connectionName, vmName, source, os, memorySize, storageSize, startVm, optimize, optimizationProfile }) {
     logDebug(`${this.name}.CREATE_VM(${vmName}):`);
     return dispatch => {
         // shows dummy vm  until we get vm from virsh (cleans up inProgress)
@@ -716,6 +722,8 @@ export function CREATE_VM({ connectionName, vmName, source, os, memorySize, stor
             memorySize,
             storageSize,
             startVm,
+            optimize,
+            optimizationProfile
         ], { err: "message", environ: ['LC_ALL=C'] })
                 .done(() => {
                     finishVmCreateInProgress(dispatch, vmName);
@@ -802,6 +810,8 @@ export function INSTALL_VM({ name, vcpus, currentMemory, metadata, disks, displa
             vcpus.count,
             prepareDisksParam(disks),
             prepareDisplaysParam(displays),
+            metadata.optimize,
+            metadata.optimization_profile,
         ], { err: "message", environ: ['LC_ALL=C'] })
                 .done(() => finishVmInstallInProgress(dispatch, name))
                 .fail(({ message, exception }) => {
